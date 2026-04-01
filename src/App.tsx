@@ -114,12 +114,16 @@ const StatCard = ({ title, value, change, icon: Icon }: { title: string, value: 
 );
 
 export default function App() {
+  const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
+  const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
+  const [devices, setDevices] = useState<Device[]>(MOCK_DEVICES);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewCampaignOpen, setIsNewCampaignOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isPairingOpen, setIsPairingOpen] = useState(false);
   const [campaignMessage, setCampaignMessage] = useState('');
+  const [campaignName, setCampaignName] = useState('');
   
   const TEMPLATES = [
     { name: 'Flash Sale', text: '🔥 FLASH SALE! Get 50% OFF all items today only. Use code SAVE50 at checkout. Shop now: [Link]' },
@@ -141,7 +145,6 @@ export default function App() {
     setScrapingError(null);
 
     try {
-      // Simulate progress while waiting for backend
       const progressInterval = setInterval(() => {
         setScrapingProgress(prev => (prev < 90 ? prev + 2 : prev));
       }, 200);
@@ -154,6 +157,11 @@ export default function App() {
 
       clearInterval(progressInterval);
       setScrapingProgress(100);
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server returned an invalid response. Please try again later.");
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -174,8 +182,71 @@ export default function App() {
   };
 
   const handleSaveToContacts = () => {
-    alert(`Successfully saved ${scrapedNumbers.length} numbers to your contact list!`);
+    // Generate CSV content
+    const csvContent = "Phone Number\n" + scrapedNumbers.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `scraped_leads_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert(`Successfully downloaded ${scrapedNumbers.length} numbers as a CSV file to your phone!`);
     setScrapedNumbers([]);
+  };
+
+  const handleImport = () => {
+    alert("Simulating file import... Processing 150 contacts.");
+    setTimeout(() => {
+      const newContacts: Contact[] = Array.from({ length: 5 }, (_, i) => ({
+        id: `imp_${Date.now()}_${i}`,
+        name: `Imported User ${i + 1}`,
+        phone: `+234 80${Math.floor(10000000 + Math.random() * 90000000)}`,
+        email: `user${i + 1}@example.com`,
+        status: 'active',
+        addedAt: 'Just now',
+        lastSeen: 'Just now'
+      }));
+      setContacts([...newContacts, ...contacts]);
+      setIsImportOpen(false);
+      alert("Successfully imported 150 contacts!");
+    }, 1500);
+  };
+
+  const handleLaunchCampaign = () => {
+    if (!campaignName || !campaignMessage) {
+      alert("Please fill in both campaign name and message.");
+      return;
+    }
+
+    const newCampaign: Campaign = {
+      id: `camp_${Date.now()}`,
+      name: campaignName,
+      type: 'sms',
+      status: 'sent',
+      recipients: contacts.length,
+      sentAt: 'Just now'
+    };
+
+    setCampaigns([newCampaign, ...campaigns]);
+    setIsNewCampaignOpen(false);
+    setCampaignName('');
+    setCampaignMessage('');
+    
+    // Switch to campaigns tab to show the result
+    setActiveTab('campaigns');
+    alert("Campaign launched successfully! You can track progress in the Campaigns tab.");
+  };
+
+  const handleDownloadAPK = () => {
+    alert("Starting APK download... Please ensure you allow installs from unknown sources in your Android settings.");
+    // Simulate download
+    const link = document.createElement("a");
+    link.href = "#";
+    link.download = "nexus-gateway.apk";
+    link.click();
   };
 
   return (
@@ -201,7 +272,13 @@ export default function App() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Campaign Name</label>
-                  <input type="text" placeholder="e.g. Summer Flash Sale" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500" />
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Summer Flash Sale" 
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500" 
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Message Type</label>
@@ -248,7 +325,10 @@ export default function App() {
                 >
                   Cancel
                 </button>
-                <button className="flex-1 btn-primary">
+                <button 
+                  className="flex-1 btn-primary"
+                  onClick={handleLaunchCampaign}
+                >
                   Launch Campaign
                 </button>
               </div>
@@ -291,12 +371,20 @@ export default function App() {
                   Make sure your CSV has columns for "Name", "Phone", and "Email". Phone numbers should include the country code (e.g., +1).
                 </p>
               </div>
-              <button 
-                className="w-full mt-8 px-4 py-2 border border-zinc-800 rounded-lg font-medium hover:bg-zinc-900 transition-colors"
-                onClick={() => setIsImportOpen(false)}
-              >
-                Close
-              </button>
+              <div className="flex gap-4 mt-8">
+                <button 
+                  className="flex-1 px-4 py-2 border border-zinc-800 rounded-lg font-medium hover:bg-zinc-900 transition-colors"
+                  onClick={() => setIsImportOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="flex-1 btn-primary"
+                  onClick={handleImport}
+                >
+                  Import Now
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -565,7 +653,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {MOCK_DEVICES.map((device) => (
+                {devices.map((device) => (
                   <div key={device.id} className="glass-card p-6 relative overflow-hidden">
                     <div className={`absolute top-0 left-0 w-1 h-full ${device.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                     <div className="flex justify-between items-start mb-6">
@@ -611,7 +699,10 @@ export default function App() {
                   <h4 className="text-xl font-bold">Download Android Gateway App</h4>
                   <p className="text-muted mt-1">Install our APK on your Android phone to turn it into a professional SMS gateway.</p>
                 </div>
-                <button className="btn-primary flex items-center gap-2 whitespace-nowrap">
+                <button 
+                  className="btn-primary flex items-center gap-2 whitespace-nowrap"
+                  onClick={handleDownloadAPK}
+                >
                   <Plus size={18} />
                   <span>Download APK</span>
                 </button>
@@ -628,10 +719,10 @@ export default function App() {
             >
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Total Contacts" value="1,248" change="+12%" icon={Users} />
+                <StatCard title="Total Contacts" value={contacts.length.toLocaleString()} change="+12%" icon={Users} />
                 <StatCard title="Messages Sent" value="8,420" change="+18%" icon={Send} />
                 <StatCard title="Open Rate" value="94.2%" change="+2.4%" icon={CheckCircle2} />
-                <StatCard title="Active Campaigns" value="3" change="0%" icon={Zap} />
+                <StatCard title="Active Campaigns" value={campaigns.filter(c => c.status === 'sent').length.toString()} change="0%" icon={Zap} />
               </div>
 
               {/* Chart Section */}
@@ -725,7 +816,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                  {MOCK_CONTACTS.map((contact) => (
+                  {contacts.map((contact) => (
                     <tr key={contact.id} className="hover:bg-zinc-900/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -765,7 +856,7 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {MOCK_CAMPAIGNS.map((campaign) => (
+              {campaigns.map((campaign) => (
                 <div key={campaign.id} className="glass-card p-6 flex flex-col gap-4">
                   <div className="flex justify-between items-start">
                     <div className={`p-2 rounded-lg ${campaign.type === 'sms' ? 'bg-blue-500/10 text-blue-500' : 'bg-purple-500/10 text-purple-500'}`}>
